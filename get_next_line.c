@@ -6,14 +6,14 @@
 /*   By: omykolai <omykolai@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2017/11/30 12:58:11 by omykolai          #+#    #+#             */
-/*   Updated: 2018/02/10 16:37:20 by omykolai         ###   ########.fr       */
+/*   Updated: 2018/02/23 16:20:44 by omykolai         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include <unistd.h>
 #include <stdlib.h>
 #include "get_next_line.h"
-#include "../libft/libft.h"
+#include "libft/libft.h"
 
 static int	read_line(const int fd, char **line, t_dat *dat)
 {
