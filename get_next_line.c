@@ -5,106 +5,108 @@
 /*                                                    +:+ +:+         +:+     */
 /*   By: omykolai <omykolai@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2017/11/30 12:58:11 by omykolai          #+#    #+#             */
-/*   Updated: 2018/02/23 16:20:44 by omykolai         ###   ########.fr       */
+/*   Created: 2018/02/23 10:38:37 by omykolai          #+#    #+#             */
+/*   Updated: 2018/03/05 17:43:47 by omykolai         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
-#include <unistd.h>
 #include <stdlib.h>
-#include "get_next_line.h"
+#include <unistd.h>
 #include "libft/libft.h"
+#include "get_next_line.h"
 
-static int	read_line(const int fd, char **line, t_dat *dat)
+static char		*join_pieces(t_queue *l, int len)
+{
+	char	*line;
+	t_list	*piece;
+	int		offset;
+
+	if (!l->first)
+		return (NULL);
+	if (!(line = ft_strnew(sizeof(*line) * (len))))
+		return (NULL);
+	offset = 0;
+	while ((piece = ft_qpopnode(l)))
+	{
+		ft_strncpy(line + offset, piece->value, piece->value_size);
+		offset += piece->value_size;
+		free(piece->value);
+		free(piece);
+	}
+	return (line);
+}
+
+static t_buff	*set_line(t_buff *b, t_queue *l, int *line_len)
+{
+	char	*s;
+	char	*end;
+	int		len;
+
+	s = b->value + b->i;
+	end = ft_strchr(s, '\n');
+	if (end)
+	{
+		len = end - s;
+		b->i += len + 1;
+		ft_qpush(l, ft_strsub(s, 0, len), len);
+	}
+	else
+	{
+		if (*s)
+			ft_qpush(l, ft_strdup(s), ft_strlen(s));
+		ft_bzero(b, sizeof(*b));
+	}
+	*line_len += l->last ? l->last->value_size : 0;
+	return (end ? NULL : b);
+}
+
+static int		read_fd(int fd, t_buff *b, t_queue *l, int *len)
 {
 	int		red;
-	char	*tmp;
-	int		flag;
 
-	flag = 0;
-	while ((red = read(fd, dat->buff, BUFF_SIZE)) > 0)
+	if (!b)
+		return (1);
+	while ((red = read(fd, b->value, BUFF_SIZE)) > 0)
 	{
-		if ((tmp = ft_strchr(dat->buff, '\n')))
-		{
-			*tmp = 0;
-			flag = 1;
-			dat->fd = fd;
-			dat->i = tmp - dat->buff + 1;
-			dat->len = red;
-		}
-		dat->buff[red] = 0;
-		tmp = *line;
-		*line = ft_strjoin(tmp, dat->buff);
-		free(tmp);
-		if (flag)
-			return (red);
+		b->value[red] = 0;
+		if (!set_line(b, l, len))
+			return (1);
 	}
-	return (red);
+	return (red < 0 ? -1 : red || *len);
 }
 
-static int	add_new(const int fd, t_list **files_dat, char **line)
+static t_buff	*read_buff(int fd, t_list **buffs, t_queue *line, int *len)
 {
-	const int	size = sizeof(t_dat);
-	t_list		*new;
-	t_dat		*dat;
-	int			red;
+	t_list	*cur;
 
-	new = NULL;
-	if (!(dat = ft_memalloc(sizeof(*dat))))
-		return (-1);
-	red = read_line(fd, line, dat);
-	if (red > 0)
+	cur = *buffs;
+	while (cur)
 	{
-		if (!(new = ft_lstnew((void*)dat, size)))
-			red = -1;
-		if (red >= 0 && new)
-			ft_lstadd(files_dat, new);
+		if ((int)cur->value_size == fd)
+			return (set_line(cur->value, line, len));
+		cur = cur->next;
 	}
-	free(dat);
-	return (red >= 0 ? *line != NULL : -1);
+	ft_lstadd(buffs, ft_lstnew(ft_memalloc(sizeof(t_buff)), fd));
+	return ((*buffs)->value);
 }
 
-static int	use_dat(t_dat *dat, char **line)
+int				get_next_line(int fd, char **line)
 {
-	int		len;
-	char	*last;
-
-	if (dat->i >= dat->len)
-		return (0);
-	if ((last = ft_strchr(dat->buff + dat->i, '\n')))
-		len = (int)(last - dat->buff - dat->i);
-	else
-		len = dat->len - dat->i;
-	if (!*line && !(*line = malloc(sizeof(**line) * (len + 1))))
-		return (-1);
-	ft_strncpy(*line, dat->buff + dat->i, len);
-	(*line)[len] = 0;
-	dat->i += len + 1;
-	return (dat->buff[dat->i - 1] != 0);
-}
-
-int			get_next_line(const int fd, char **line)
-{
-	static t_list	*files_dat = NULL;
-	t_list			*cur;
-	t_dat			*dat;
-	int				res;
+	static t_list	*buffs = NULL;
+	t_buff			*buff;
+	t_queue			*line_pieces;
+	int				len;
+	int				result;
 
 	if (fd < 0 || !line)
 		return (-1);
-	cur = files_dat;
-	*line = NULL;
-	while (cur)
-	{
-		dat = (t_dat*)cur->value;
-		if (dat->fd == fd)
-		{
-			if (dat->i < dat->len &&
-				(res = use_dat(dat, line)) != 0)
-				return (res);
-			break ;
-		}
-		cur = cur->next;
-	}
-	return (add_new(fd, &files_dat, line));
+	len = 0;
+	line_pieces = ft_qnew();
+	buff = read_buff(fd, &buffs, line_pieces, &len);
+	result = read_fd(fd, buff, line_pieces, &len);
+	*line = join_pieces(line_pieces, len);
+	if (!*line && result == 1)
+		result = -1;
+	free(line_pieces);
+	return (result);
 }
