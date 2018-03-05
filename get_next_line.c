@@ -12,7 +12,7 @@
 
 #include <stdlib.h>
 #include <unistd.h>
-#include "libft/libft.h"
+#include "../libft/libft.h"
 #include "get_next_line.h"
 
 static char		*join_pieces(t_queue *l, int len)
